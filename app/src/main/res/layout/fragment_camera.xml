@@ -28,17 +28,32 @@
         app:layout_constraintEnd_toEndOf="parent" />
 
 
-
-    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
-        android:id="@+id/place"
+    <LinearLayout
+        android:id="@+id/actionButtons"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:textSize="15sp"
-        android:textAlignment="center"
-        android:layout_marginBottom="10dp"
-        android:text="Place"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginBottom="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/escavar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Escavar"
+            android:layout_marginEnd="8dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/coletar"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Coletar"
+            android:enabled="false" />
+
+    </LinearLayout>
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

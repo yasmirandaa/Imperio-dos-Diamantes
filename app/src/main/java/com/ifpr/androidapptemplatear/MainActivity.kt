@@ -1,6 +1,8 @@
+
 package com.ifpr.androidapptemplatear
 
 import android.os.Bundle
+import android.media.MediaPlayer
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.navigation.findNavController
@@ -11,6 +13,7 @@ import com.ifpr.androidapptemplatear.databinding.ActivityMainBinding
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private var musica: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -20,16 +23,27 @@ class MainActivity : AppCompatActivity() {
 
         val navView: BottomNavigationView = binding.navView
 
-        val navController = findNavController(R.id.nav_host_fragment_activity_main)
-        // Passing each menu ID as a set of Ids because each
-        // menu should be considered as top level destinations.
+        val navController =
+            findNavController(R.id.nav_host_fragment_activity_main)
+
         val appBarConfiguration = AppBarConfiguration(
             setOf(
-                R.id.navigation_camera, R.id.navigation_changeobject
-                //, R.id.navigation_profile
+                R.id.navigation_camera,
+                R.id.navigation_changeobject
             )
         )
-        //setupActionBarWithNavController(navController, appBarConfiguration)
+
         navView.setupWithNavController(navController)
+
+        // Iniciar música de fundo
+        musica = MediaPlayer.create(this, R.raw.som1)
+        musica?.isLooping = true
+        musica?.start()
+    }
+
+    override fun onDestroy() {
+        musica?.release()
+        musica = null
+        super.onDestroy()
     }
 }
