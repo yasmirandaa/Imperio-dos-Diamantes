@@ -4,6 +4,7 @@ package com.ifpr.androidapptemplatear.ui
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.os.Bundle
+import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -12,7 +13,6 @@ import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
-import com.google.ar.core.Config
 import com.ifpr.androidapptemplatear.R
 import io.github.sceneview.ar.ArSceneView
 import io.github.sceneview.ar.node.ArModelNode
@@ -27,6 +27,7 @@ class CameraFragment : Fragment() {
 
     private var modelNode: ArModelNode? = null
     private var somEscavacao: MediaPlayer? = null
+
     private var arReady = false
     private var pedraVisivel = false
     private var carregandoPedra = false
@@ -34,10 +35,8 @@ class CameraFragment : Fragment() {
     private val cameraPermissionCode = 1001
 
     private val pedras = listOf(
-        "Diamante.glb",
-        "Rubi.glb",
-        "Safira.glb",
-        "Esmeralda.glb"
+        "Esmeralda.glb",
+        "Safira.glb"
     )
 
     override fun onCreateView(
@@ -55,13 +54,12 @@ class CameraFragment : Fragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        sceneView = view.findViewById<ArSceneView>(R.id.sceneView).apply {
-            lightEstimationMode = Config.LightEstimationMode.DISABLED
-        }
+        sceneView = view.findViewById(R.id.sceneView)
 
         botaoEscavar = view.findViewById(R.id.escavar)
         botaoColetar = view.findViewById(R.id.coletar)
 
+        botaoEscavar.isEnabled = false
         botaoColetar.isEnabled = false
 
         botaoEscavar.setOnClickListener {
@@ -146,7 +144,9 @@ class CameraFragment : Fragment() {
 
         val pedraSorteada = pedras.random()
 
+        // Reproduz o som da escavação
         somEscavacao?.release()
+
         somEscavacao = MediaPlayer.create(
             requireContext(),
             R.raw.som1
@@ -154,6 +154,7 @@ class CameraFragment : Fragment() {
 
         somEscavacao?.setOnCompletionListener { player ->
             player.release()
+
             if (somEscavacao === player) {
                 somEscavacao = null
             }
@@ -165,42 +166,99 @@ class CameraFragment : Fragment() {
     }
 
     private fun carregarPedra(nomeArquivo: String) {
+
         carregandoPedra = true
+        pedraVisivel = false
+
         botaoEscavar.isEnabled = false
         botaoColetar.isEnabled = false
 
-        val novoModelo = ArModelNode(
-            sceneView.engine,
-            PlacementMode.INSTANT
-        ).apply {
-            isEditable = true
-            isScaleEditable = false
-        }
+        try {
+            val arquivoExiste = requireContext()
+                .assets
+                .list("")
+                ?.contains(nomeArquivo) == true
 
-        modelNode?.let { sceneView.removeChild(it) }
-        modelNode = novoModelo
-        sceneView.addChild(novoModelo)
+            Log.d(
+                "TESTE_AR",
+                "Arquivo $nomeArquivo encontrado: $arquivoExiste"
+            )
 
-        novoModelo.loadModelGlbAsync(
-            glbFileLocation = nomeArquivo,
-            centerOrigin = Position(0f, 0f, 1f)
-        ) {
-            if (!isAdded || modelNode !== novoModelo) {
-                return@loadModelGlbAsync
+            if (!arquivoExiste) {
+                Toast.makeText(
+                    requireContext(),
+                    "Arquivo não encontrado: $nomeArquivo",
+                    Toast.LENGTH_LONG
+                ).show()
+
+                carregandoPedra = false
+                botaoEscavar.isEnabled = arReady
+                return
             }
 
+            val novoModelo = ArModelNode(
+                sceneView.engine,
+                PlacementMode.INSTANT
+            )
+
+            // Guarda a referência para permitir a coleta
+            modelNode = novoModelo
+
+            sceneView.addChild(novoModelo)
+
+            Log.d(
+                "TESTE_AR",
+                "Iniciando carregamento de $nomeArquivo"
+            )
+
+            novoModelo.loadModelGlbAsync(
+                glbFileLocation = nomeArquivo,
+                centerOrigin = Position(0f, 0f, 1f)
+            ) {
+
+                Log.d(
+                    "TESTE_AR",
+                    "Carregamento concluído: $nomeArquivo"
+                )
+
+                if (!isAdded) return@loadModelGlbAsync
+
+                carregandoPedra = false
+                pedraVisivel = true
+
+                botaoEscavar.isEnabled = false
+                botaoColetar.isEnabled = true
+
+                Toast.makeText(
+                    requireContext(),
+                    "Pedra encontrada! Toque em Coletar.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+
+        } catch (e: Exception) {
+
+            Log.e(
+                "TESTE_AR",
+                "Erro no carregamento de $nomeArquivo",
+                e
+            )
+
+            modelNode?.let {
+                sceneView.removeChild(it)
+            }
+
+            modelNode = null
             carregandoPedra = false
-            pedraVisivel = true
+            pedraVisivel = false
 
-            botaoEscavar.isEnabled = true
-            botaoColetar.isEnabled = true
-
-            sceneView.planeRenderer.isVisible = true
+            botaoEscavar.isEnabled = arReady
+            botaoColetar.isEnabled = false
 
             Toast.makeText(
                 requireContext(),
-                "Você encontrou: ${nomeArquivo.removeSuffix(".glb")}!",
-                Toast.LENGTH_SHORT
+                "Não foi possível carregar a pedra.",
+                Toast.LENGTH_LONG
             ).show()
         }
     }
@@ -208,12 +266,17 @@ class CameraFragment : Fragment() {
     private fun coletar() {
         if (!pedraVisivel || carregandoPedra) return
 
-        modelNode?.let { sceneView.removeChild(it) }
+        modelNode?.let {
+            sceneView.removeChild(it)
+        }
+
         modelNode = null
 
         pedraVisivel = false
+        carregandoPedra = false
+
         botaoColetar.isEnabled = false
-        botaoEscavar.isEnabled = true
+        botaoEscavar.isEnabled = arReady
 
         Toast.makeText(
             requireContext(),
@@ -223,11 +286,15 @@ class CameraFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+
         arReady = false
         pedraVisivel = false
         carregandoPedra = false
 
-        modelNode?.let { sceneView.removeChild(it) }
+        modelNode?.let {
+            sceneView.removeChild(it)
+        }
+
         modelNode = null
 
         somEscavacao?.release()
