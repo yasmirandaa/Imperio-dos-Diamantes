@@ -8,14 +8,14 @@ android {
     namespace = "com.ifpr.androidapptemplatear"
     compileSdk = 36
 
+    experimentalProperties["android.nativeLibraryAlignmentPageSize"] = "16k"
+
     defaultConfig {
         applicationId = "com.ifpr.androidapptemplatear"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
