@@ -59,22 +59,34 @@ class LocalizacaoController(
      * O raio é calculado a partir de cada coordenada.
      */
     private val lugares = listOf(
-        // Catedral Sant'Ana
+        // 1. Catedral Sant'Ana
         Lugar(
             latitude = -25.097922,
             longitude = -50.159264
         ),
 
-        // Igreja dos Polacos
+        // 2. Igreja dos Polacos
         Lugar(
             latitude = -25.094904,
             longitude = -50.163075
         ),
 
-        // Parque Estadual de Vila Velha
+        // 3. Parque Estadual de Vila Velha
         Lugar(
             latitude = -25.246243,
             longitude = -50.021782
+        ),
+
+        // 4. Cachoeira da Mariquinha
+        Lugar(
+            latitude = -25.195457,
+            longitude = -49.948448
+        ),
+
+        // 5. Buraco do Padre
+        Lugar(
+            latitude = -25.140285,
+            longitude = -50.051437
         )
     )
 

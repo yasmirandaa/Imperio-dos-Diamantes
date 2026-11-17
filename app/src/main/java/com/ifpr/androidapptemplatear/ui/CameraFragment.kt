@@ -66,6 +66,7 @@ class CameraFragment : Fragment() {
     private var container: FrameLayout? = null
     private var placeButton: ExtendedFloatingActionButton? = null
     private var statusText: TextView? = null
+    private var scoreText: TextView? = null
     private var overlay: View? = null
 
     private var sceneView: SceneView? = null
@@ -133,6 +134,10 @@ class CameraFragment : Fragment() {
             SharedModelViewModel::class.java
         ]
 
+        sharedViewModel.pontuacao.observe(viewLifecycleOwner) { pontos ->
+            scoreText?.text = "Pontuação: $pontos pontos"
+        }
+
         val selectedModel = sharedViewModel.selectedModel.value
 
         if (!selectedModel.isNullOrBlank()) {
@@ -168,6 +173,7 @@ class CameraFragment : Fragment() {
 
         if (parent != null) {
             localizacaoController.conectar(parent) { arquivo ->
+                sharedViewModel.registrarEncontro(arquivo)
                 sharedViewModel.selectModel(arquivo)
             }
 
@@ -191,7 +197,14 @@ class CameraFragment : Fragment() {
             setTextColor(Color.WHITE)
         }
 
+        scoreText = TextView(requireContext()).apply {
+            text = "Pontuação: 0 pontos"
+            textSize = 16f
+            setTextColor(Color.WHITE)
+        }
+
         panel.addView(statusText)
+        panel.addView(scoreText)
 
         layer.addView(
             panel,
@@ -855,6 +868,7 @@ class CameraFragment : Fragment() {
 
         overlay = null
         statusText = null
+        scoreText = null
         placeButton = null
         container = null
 
