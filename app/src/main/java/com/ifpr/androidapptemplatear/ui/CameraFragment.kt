@@ -1,3 +1,4 @@
+
 package com.ifpr.androidapptemplatear.ui
 
 import android.Manifest
@@ -22,6 +23,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.ar.core.ArCoreApk
 import com.google.ar.core.Config
@@ -65,13 +67,19 @@ class CameraFragment : Fragment() {
     private var pedraVisivel = false
     private var carregandoPedra = false
 
-    private val pedras = listOf("Esmeralda.glb", "Safira.glb")
+    private val pedras = listOf(
+        "Diamante.glb",
+        "Esmeralda_leve.glb",
+        "Rubi.glb",
+        "Safira.glb"
+    )
 
     private val permissaoCamera = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { concedida ->
         if (sceneContainer != null) {
-            if (concedida) verificarARCore() else iniciarModoAlternativo(false)
+            if (concedida) verificarARCore()
+            else iniciarModoAlternativo(false)
         }
     }
 
@@ -79,10 +87,18 @@ class CameraFragment : Fragment() {
         inflater: LayoutInflater,
         container: ViewGroup?,
         savedInstanceState: Bundle?
-    ): View = inflater.inflate(R.layout.fragment_camera, container, false)
+    ): View = inflater.inflate(
+        R.layout.fragment_camera,
+        container,
+        false
+    )
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?
+    ) {
         super.onViewCreated(view, savedInstanceState)
+
         sceneContainer = view.findViewById(R.id.sceneContainer)
         botaoEscavar = view.findViewById(R.id.escavar)
         botaoColetar = view.findViewById(R.id.coletar)
@@ -91,12 +107,18 @@ class CameraFragment : Fragment() {
         botaoEscavar?.isEnabled = false
         botaoColetar?.isEnabled = false
         botaoPosicionar?.isEnabled = false
+
         botaoEscavar?.setOnClickListener { escavar() }
         botaoColetar?.setOnClickListener { coletar() }
         botaoPosicionar?.setOnClickListener { posicionarPedra() }
 
-        if (ContextCompat.checkSelfPermission(
-                requireContext(), Manifest.permission.CAMERA
+        // Emulador: usa cena 3D sem ARCore nem CameraX.
+        if (isEmulator()) {
+            iniciarModoAlternativo(false)
+        } else if (
+            ContextCompat.checkSelfPermission(
+                requireContext(),
+                Manifest.permission.CAMERA
             ) == PackageManager.PERMISSION_GRANTED
         ) {
             verificarARCore()
@@ -115,30 +137,46 @@ class CameraFragment : Fragment() {
                 Build.HARDWARE.contains("ranchu", true)
 
     private fun verificarARCore() {
-        // Não deixa o SceneView abrir uma sessão AR incompatível no emulador.
         if (isEmulator()) {
-            iniciarModoAlternativo(true)
+            iniciarModoAlternativo(false)
             return
         }
 
         val expected = generation
         var resolved = false
+
         checkJob?.cancel()
         checkJob = viewLifecycleOwner.lifecycleScope.launch {
             delay(4000L)
-            if (!resolved && sceneContainer != null && expected == generation) {
+
+            if (
+                !resolved &&
+                sceneContainer != null &&
+                expected == generation
+            ) {
                 resolved = true
                 iniciarModoAlternativo(true)
             }
         }
 
         try {
-            ArCoreApk.getInstance().checkAvailabilityAsync(requireContext()) { availability ->
+            ArCoreApk.getInstance().checkAvailabilityAsync(
+                requireContext()
+            ) { availability ->
+
                 activity?.runOnUiThread {
-                    if (!resolved && sceneContainer != null && expected == generation) {
+                    if (
+                        !resolved &&
+                        sceneContainer != null &&
+                        expected == generation
+                    ) {
                         resolved = true
                         checkJob?.cancel()
-                        if (availability == ArCoreApk.Availability.SUPPORTED_INSTALLED) {
+
+                        if (
+                            availability ==
+                            ArCoreApk.Availability.SUPPORTED_INSTALLED
+                        ) {
                             iniciarAR()
                         } else {
                             iniciarModoAlternativo(true)
@@ -147,8 +185,17 @@ class CameraFragment : Fragment() {
                 }
             }
         } catch (error: Exception) {
-            Log.e("IMPERIO_AR", "Erro na verificação ARCore", error)
-            if (!resolved && sceneContainer != null && expected == generation) {
+            Log.e(
+                "IMPERIO_AR",
+                "Erro na verificacao do ARCore",
+                error
+            )
+
+            if (
+                !resolved &&
+                sceneContainer != null &&
+                expected == generation
+            ) {
                 resolved = true
                 checkJob?.cancel()
                 iniciarModoAlternativo(true)
@@ -158,75 +205,119 @@ class CameraFragment : Fragment() {
 
     private fun iniciarAR() {
         val host = sceneContainer ?: return
+
         limparCena()
         mode = Mode.AR
+
         val expected = generation
 
         try {
             val ar = ARSceneView(requireContext())
+
             arSceneView = ar
             sceneView = ar
 
             ar.sessionConfiguration = { _, config ->
-                config.planeFindingMode = Config.PlaneFindingMode.HORIZONTAL
-                config.lightEstimationMode = Config.LightEstimationMode.DISABLED
+                config.planeFindingMode =
+                    Config.PlaneFindingMode.HORIZONTAL
+
+                config.lightEstimationMode =
+                    Config.LightEstimationMode.DISABLED
             }
 
             ar.onSessionFailed = { error ->
-                Log.e("IMPERIO_AR", "Falha ao iniciar ARCore", error)
+                Log.e(
+                    "IMPERIO_AR",
+                    "Falha ao iniciar ARCore",
+                    error
+                )
+
                 host.post {
-                    if (sceneContainer === host && generation == expected && mode == Mode.AR) {
+                    if (
+                        sceneContainer === host &&
+                        generation == expected &&
+                        mode == Mode.AR
+                    ) {
                         iniciarModoAlternativo(true)
                     }
                 }
             }
 
             ar.onSessionUpdated = { _, _ ->
-                if (mode == Mode.AR && generation == expected && anchorNode == null) {
+                if (
+                    mode == Mode.AR &&
+                    generation == expected &&
+                    anchorNode == null
+                ) {
                     placementHit = if (modelNode != null) {
                         ar.hitTestAR(
-                            planeTypes = setOf(Plane.Type.HORIZONTAL_UPWARD_FACING)
+                            planeTypes = setOf(
+                                Plane.Type.HORIZONTAL_UPWARD_FACING
+                            )
                         )
-                    } else null
-                    botaoPosicionar?.isEnabled = modelNode != null && placementHit != null
+                    } else {
+                        null
+                    }
+
+                    botaoPosicionar?.isEnabled =
+                        modelNode != null && placementHit != null
                 }
             }
 
             host.addView(ar, fullSize())
             ar.lifecycle = viewLifecycleOwner.lifecycle
+
             botaoPosicionar?.text = "Posicionar"
             botaoPosicionar?.isEnabled = false
             botaoEscavar?.isEnabled = true
+
+            // Exibe o modelo escolhido na outra tela.
+            exibirModeloSelecionado()
+
         } catch (error: Exception) {
-            Log.e("IMPERIO_AR", "Erro ao criar ARSceneView", error)
+            Log.e(
+                "IMPERIO_AR",
+                "Erro ao criar ARSceneView",
+                error
+            )
             iniciarModoAlternativo(true)
         }
     }
 
     private fun iniciarModoAlternativo(comCamera: Boolean) {
         val host = sceneContainer ?: return
+
         limparCena()
         mode = Mode.PREVIEW_3D
+
         host.setBackgroundColor(Color.rgb(35, 43, 55))
+
         val expected = generation
 
-        // Tenta a câmera normal. Se não estiver disponível, ainda exibe a cena 3D.
         val previewView = if (comCamera) {
             PreviewView(requireContext()).apply {
-                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                implementationMode =
+                    PreviewView.ImplementationMode.COMPATIBLE
+
                 scaleType = PreviewView.ScaleType.FILL_CENTER
+
                 host.addView(this, fullSize())
             }
-        } else null
+        } else {
+            null
+        }
 
         try {
             val scene = SceneView(
                 context = requireContext(),
                 isOpaque = previewView == null
             )
+
             sceneView = scene
+
             scene.cameraNode.position = Position(0f, 0f, 3f)
             scene.cameraNode.lookAt(Position(0f, 0f, 0f))
+
             host.addView(scene, fullSize())
             scene.lifecycle = viewLifecycleOwner.lifecycle
 
@@ -234,7 +325,13 @@ class CameraFragment : Fragment() {
             botaoPosicionar?.isEnabled = false
             botaoEscavar?.isEnabled = true
 
-            if (previewView != null) abrirCameraNormal(previewView, expected)
+            if (previewView != null) {
+                abrirCameraNormal(previewView, expected)
+            }
+
+            // Carrega automaticamente o modelo escolhido.
+            exibirModeloSelecionado()
+
             if (isAdded) {
                 Toast.makeText(
                     requireContext(),
@@ -242,129 +339,319 @@ class CameraFragment : Fragment() {
                     Toast.LENGTH_LONG
                 ).show()
             }
+
         } catch (error: Exception) {
-            Log.e("IMPERIO_AR", "Erro na visualização 3D", error)
+            Log.e(
+                "IMPERIO_AR",
+                "Erro na visualizacao 3D",
+                error
+            )
+
             botaoEscavar?.isEnabled = false
-            if (isAdded) Toast.makeText(
-                requireContext(), "Não foi possível iniciar a cena 3D.",
-                Toast.LENGTH_LONG
-            ).show()
+
+            if (isAdded) {
+                Toast.makeText(
+                    requireContext(),
+                    "Não foi possível iniciar a cena 3D.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
-    private fun abrirCameraNormal(previewView: PreviewView, expected: Int) {
+    private fun abrirCameraNormal(
+        previewView: PreviewView,
+        expected: Int
+    ) {
         val ctx = context ?: return
         val owner = viewLifecycleOwner
+
         try {
             val future = ProcessCameraProvider.getInstance(ctx)
+
             future.addListener({
-                if (sceneContainer == null || mode != Mode.PREVIEW_3D ||
-                    generation != expected) return@addListener
+                if (
+                    sceneContainer == null ||
+                    mode != Mode.PREVIEW_3D ||
+                    generation != expected
+                ) {
+                    return@addListener
+                }
 
                 try {
                     val provider = future.get()
+
                     val selector = when {
-                        provider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA) ->
+                        provider.hasCamera(
                             CameraSelector.DEFAULT_BACK_CAMERA
-                        provider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA) ->
+                        ) -> CameraSelector.DEFAULT_BACK_CAMERA
+
+                        provider.hasCamera(
                             CameraSelector.DEFAULT_FRONT_CAMERA
+                        ) -> CameraSelector.DEFAULT_FRONT_CAMERA
+
                         else -> return@addListener
                     }
+
                     val preview = Preview.Builder().build()
-                    preview.setSurfaceProvider(previewView.surfaceProvider)
-                    provider.bindToLifecycle(owner, selector, preview)
+
+                    preview.setSurfaceProvider(
+                        previewView.surfaceProvider
+                    )
+
+                    provider.bindToLifecycle(
+                        owner,
+                        selector,
+                        preview
+                    )
+
                     cameraProvider = provider
                     cameraPreview = preview
+
                 } catch (error: Exception) {
-                    // Sem câmera disponível no emulador: a cena 3D continua ativa.
-                    Log.w("IMPERIO_AR", "CameraX indisponível", error)
+                    Log.w(
+                        "IMPERIO_AR",
+                        "CameraX indisponivel",
+                        error
+                    )
                 }
+
             }, ContextCompat.getMainExecutor(ctx))
+
         } catch (error: Exception) {
-            Log.w("IMPERIO_AR", "Falha ao abrir CameraX", error)
+            Log.w(
+                "IMPERIO_AR",
+                "Falha ao abrir CameraX",
+                error
+            )
         }
+    }
+
+    /**
+     * Le a pedra selecionada no ChangeObjectFragment.
+     *
+     * A selecao so e removida depois que o modelo
+     * foi carregado com sucesso.
+     */
+    private fun exibirModeloSelecionado() {
+        if (!isAdded || sceneView == null) return
+
+        val vm = ViewModelProvider(requireActivity())[
+            SharedModelViewModel::class.java
+        ]
+
+        val escolhido = vm.selectedModel.value ?: return
+
+        Log.i(
+            "IMPERIO_AR",
+            "Modelo solicitado: $escolhido; modo=$mode"
+        )
+
+        carregarPedra(escolhido)
     }
 
     private fun escavar() {
         if (sceneView == null || mode == Mode.CHECKING) return
+
         if (pedraVisivel || carregandoPedra) {
-            Toast.makeText(requireContext(), "Colete a pedra atual primeiro.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                requireContext(),
+                "Colete a pedra atual primeiro.",
+                Toast.LENGTH_SHORT
+            ).show()
             return
         }
+
+        // Ignora arquivos inexistentes.
+        val disponiveis = pedras.filter {
+            modelLocation(it) != null
+        }
+
+        if (disponiveis.isEmpty()) {
+            Toast.makeText(
+                requireContext(),
+                "Nenhum GLB de pedra encontrado em assets.",
+                Toast.LENGTH_LONG
+            ).show()
+            return
+        }
+
         reproduzirSom()
-        carregarPedra(pedras.random())
+        carregarPedra(disponiveis.random())
     }
 
     private fun reproduzirSom() {
-        somEscavacao?.release()
-        somEscavacao = null
-        val player = MediaPlayer.create(requireContext(), R.raw.som1) ?: return
-        somEscavacao = player
-        player.setOnCompletionListener {
-            if (somEscavacao === it) somEscavacao = null
-            it.release()
+        try {
+            somEscavacao?.release()
+            somEscavacao = null
+
+            val player = MediaPlayer.create(
+                requireContext(),
+                R.raw.som1
+            ) ?: return
+
+            somEscavacao = player
+
+            player.setOnCompletionListener {
+                if (somEscavacao === it) {
+                    somEscavacao = null
+                }
+                it.release()
+            }
+
+            player.start()
+
+        } catch (error: Exception) {
+            Log.w(
+                "IMPERIO_AR",
+                "Nao foi possivel reproduzir o som",
+                error
+            )
+            somEscavacao = null
         }
-        player.start()
     }
 
     private fun carregarPedra(nomeArquivo: String) {
         val scene = sceneView ?: return
-        val asset = modelLocation(nomeArquivo)
+
+        // Troca a esmeralda pesada pela versao leve.
+        val arquivoReal = if (
+            nomeArquivo.equals(
+                "Esmeralda.glb",
+                ignoreCase = true
+            )
+        ) {
+            "Esmeralda_leve.glb"
+        } else {
+            nomeArquivo
+        }
+
+        val asset = modelLocation(arquivoReal)
+
         if (asset == null) {
-            Toast.makeText(requireContext(), "GLB não encontrado: $nomeArquivo", Toast.LENGTH_LONG).show()
+            Toast.makeText(
+                requireContext(),
+                "GLB não encontrado: $nomeArquivo",
+                Toast.LENGTH_LONG
+            ).show()
             return
         }
 
         loadJob?.cancel()
         removerPedra()
+
         carregandoPedra = true
         botaoEscavar?.isEnabled = false
         botaoColetar?.isEnabled = false
         botaoPosicionar?.isEnabled = false
+
         val expected = generation
         val expectedModel = ++modelGeneration
 
         loadJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val instance = scene.modelLoader.loadModelInstance(asset)
-                if (generation != expected || modelGeneration != expectedModel ||
-                    sceneView !== scene) return@launch
+                Log.i(
+                    "IMPERIO_AR",
+                    "Carregando GLB: $asset"
+                )
+
+                val instance =
+                    scene.modelLoader.loadModelInstance(asset)
+
+                if (
+                    generation != expected ||
+                    modelGeneration != expectedModel ||
+                    sceneView !== scene
+                ) {
+                    return@launch
+                }
 
                 if (instance == null) {
                     carregandoPedra = false
                     botaoEscavar?.isEnabled = true
-                    Toast.makeText(requireContext(), "Não foi possível abrir $nomeArquivo", Toast.LENGTH_LONG).show()
+
+                    Toast.makeText(
+                        requireContext(),
+                        "Não foi possível abrir $nomeArquivo",
+                        Toast.LENGTH_LONG
+                    ).show()
                     return@launch
                 }
+
                 val isAR = mode == Mode.AR
+
                 val node = ModelNode(
                     modelInstance = instance,
                     scaleToUnits = if (isAR) 0.25f else 1.3f,
                     centerOrigin = Position(0f, 0f, 0f)
                 )
+
                 node.isEditable = true
                 node.isScaleEditable = false
+
                 modelNode = node
                 pedraVisivel = true
                 carregandoPedra = false
 
                 if (isAR) {
-                    botaoPosicionar?.text = "Procurando superfície..."
-                    botaoPosicionar?.isEnabled = placementHit != null
-                    Toast.makeText(requireContext(), "Aponte para o chão e posicione a pedra.", Toast.LENGTH_LONG).show()
+                    botaoPosicionar?.text =
+                        "Procurando superfície..."
+
+                    botaoPosicionar?.isEnabled =
+                        placementHit != null
+
+                    Toast.makeText(
+                        requireContext(),
+                        "Aponte para o chão e posicione a pedra.",
+                        Toast.LENGTH_LONG
+                    ).show()
                 } else {
                     scene.addChildNode(node)
+
                     botaoColetar?.isEnabled = true
-                    Toast.makeText(requireContext(), "Pedra encontrada! Toque em Coletar.", Toast.LENGTH_SHORT).show()
+
+                    Toast.makeText(
+                        requireContext(),
+                        "Pedra encontrada! Toque em Coletar.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
+
+                // Limpa a selecao somente apos sucesso.
+                if (isAdded) {
+                    val vm = ViewModelProvider(requireActivity())[
+                        SharedModelViewModel::class.java
+                    ]
+
+                    if (vm.selectedModel.value == nomeArquivo) {
+                        vm.selectedModel.value = null
+                    }
+                }
+
             } catch (error: CancellationException) {
                 throw error
+
             } catch (error: Exception) {
-                Log.e("IMPERIO_AR", "Erro ao carregar $nomeArquivo", error)
-                if (sceneView === scene && generation == expected) {
-                    carregandoPedra = false
+                Log.e(
+                    "IMPERIO_AR",
+                    "Erro ao carregar $nomeArquivo",
+                    error
+                )
+
+                if (
+                    sceneView === scene &&
+                    generation == expected
+                ) {
+                    removerPedra()
                     botaoEscavar?.isEnabled = true
-                    Toast.makeText(requireContext(), "Erro ao carregar a pedra.", Toast.LENGTH_LONG).show()
+
+                    if (isAdded) {
+                        Toast.makeText(
+                            requireContext(),
+                            "Erro ao carregar a pedra.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
             }
         }
@@ -372,46 +659,84 @@ class CameraFragment : Fragment() {
 
     private fun posicionarPedra() {
         if (mode != Mode.AR) return
+
         val ar = arSceneView ?: return
         val node = modelNode ?: return
         val hit = placementHit ?: return
+
         try {
-            val anchor = AnchorNode(engine = ar.engine, anchor = hit.createAnchor())
+            val anchor = AnchorNode(
+                engine = ar.engine,
+                anchor = hit.createAnchor()
+            )
+
             anchor.addChildNode(node)
             ar.addChildNode(anchor)
+
             anchorNode = anchor
             placementHit = null
+
             botaoPosicionar?.text = "Posicionado"
             botaoPosicionar?.isEnabled = false
             botaoColetar?.isEnabled = true
-            Toast.makeText(requireContext(), "Pedra posicionada!", Toast.LENGTH_SHORT).show()
+
+            Toast.makeText(
+                requireContext(),
+                "Pedra posicionada!",
+                Toast.LENGTH_SHORT
+            ).show()
+
         } catch (error: Exception) {
-            Log.e("IMPERIO_AR", "Erro ao posicionar", error)
+            Log.e(
+                "IMPERIO_AR",
+                "Erro ao posicionar",
+                error
+            )
         }
     }
 
     private fun coletar() {
         if (!pedraVisivel || carregandoPedra) return
+
         removerPedra()
+
         botaoColetar?.isEnabled = false
         botaoPosicionar?.isEnabled = false
-        botaoPosicionar?.text = if (mode == Mode.AR) "Posicionar" else "Modo 3D"
+        botaoPosicionar?.text =
+            if (mode == Mode.AR) "Posicionar" else "Modo 3D"
+
         botaoEscavar?.isEnabled = true
-        Toast.makeText(requireContext(), "Pedra coletada!", Toast.LENGTH_SHORT).show()
+
+        Toast.makeText(
+            requireContext(),
+            "Pedra coletada!",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
-    private fun modelLocation(nomeArquivo: String): String? {
+    private fun modelLocation(
+        nomeArquivo: String
+    ): String? {
         val ctx = context ?: return null
+
         try {
             ctx.assets.open(nomeArquivo).use { }
             return nomeArquivo
-        } catch (_: Exception) { }
+        } catch (_: Exception) {
+        }
+
         val file = File(ctx.filesDir, nomeArquivo)
-        return if (file.isFile) Uri.fromFile(file).toString() else null
+
+        return if (file.isFile) {
+            Uri.fromFile(file).toString()
+        } else {
+            null
+        }
     }
 
     private fun removerPedra() {
         modelGeneration++
+
         modelNode?.let { node ->
             runCatching {
                 anchorNode?.removeChildNode(node)
@@ -419,7 +744,9 @@ class CameraFragment : Fragment() {
                 node.destroy()
             }
         }
+
         modelNode = null
+
         anchorNode?.let { anchor ->
             runCatching {
                 sceneView?.removeChildNode(anchor)
@@ -427,6 +754,7 @@ class CameraFragment : Fragment() {
                 anchor.destroy()
             }
         }
+
         anchorNode = null
         placementHit = null
         pedraVisivel = false
@@ -435,23 +763,32 @@ class CameraFragment : Fragment() {
 
     private fun limparCena() {
         generation++
+
         checkJob?.cancel()
         loadJob?.cancel()
         loadJob = null
+
         cameraPreview?.let { preview ->
-            runCatching { cameraProvider?.unbind(preview) }
+            runCatching {
+                cameraProvider?.unbind(preview)
+            }
         }
+
         cameraPreview = null
         cameraProvider = null
+
         removerPedra()
+
         sceneView?.let { scene ->
             runCatching {
                 scene.lifecycle = null
                 scene.destroy()
             }
         }
+
         sceneView = null
         arSceneView = null
+
         sceneContainer?.removeAllViews()
     }
 
@@ -462,13 +799,17 @@ class CameraFragment : Fragment() {
 
     override fun onDestroyView() {
         limparCena()
+
         somEscavacao?.release()
         somEscavacao = null
+
         sceneContainer = null
         botaoEscavar = null
         botaoColetar = null
         botaoPosicionar = null
+
         mode = Mode.CHECKING
+
         super.onDestroyView()
     }
 }
